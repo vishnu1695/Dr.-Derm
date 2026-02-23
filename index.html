@@ -438,15 +438,37 @@ textarea.if{resize:vertical;min-height:68px;line-height:1.6;}
 .dxc.open .chev{transform:rotate(180deg);}
 .dxbd{display:none;padding:11px 13px;}
 .dxc.open .dxbd{display:block;}
-.buls{list-style:none;display:flex;flex-direction:column;gap:6px;}
-.buls li{display:flex;gap:7px;font-size:12.5px;line-height:1.6;color:var(--text2);}
-.bd{flex-shrink:0;width:3px;height:3px;border-radius:50%;background:var(--blue3);margin-top:8px;}
-.kw{color:var(--kw);font-weight:600;}
-.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.buls{list-style:none;display:flex;flex-direction:column;gap:7px;}
+.buls li{
+  display:flex;gap:9px;font-size:13px;line-height:1.65;color:var(--text2);
+  background:var(--blue-pale);border-radius:8px;padding:8px 11px;border:1px solid var(--border);
+}
+.bd{flex-shrink:0;width:5px;height:5px;border-radius:50%;background:var(--blue);margin-top:9px;}
+.kw{
+  color:var(--blue);font-weight:700;
+  background:rgba(37,99,235,0.1);padding:1px 5px;border-radius:4px;
+  border-bottom:1.5px solid rgba(37,99,235,0.3);
+}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);align-items:center;}
 .tag{font-size:8.5px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.06em;text-transform:uppercase;}
 .tb{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-bdr);}
 .tt{background:var(--green-bg); color:var(--green); border:1px solid var(--green-bdr);}
 .te{background:var(--red-bg);   color:var(--red);   border:1px solid var(--red-bdr);}
+.btn-anki{
+  margin-left:auto;
+  font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 10px;border-radius:5px;cursor:pointer;
+  background:white;color:var(--blue);border:1px solid var(--border-hi);
+  font-family:'Outfit',sans-serif;transition:all .15s;display:flex;align-items:center;gap:4px;
+}
+.btn-anki:hover{background:var(--blue);color:white;border-color:var(--blue);}
+.anki-toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--navy);color:white;padding:10px 20px;border-radius:10px;
+  font-size:12px;font-weight:600;opacity:0;transition:all .3s;pointer-events:none;z-index:999;
+  box-shadow:var(--shadow-lg);
+}
+.anki-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
 /* next steps */
 .nc{background:var(--card-hi);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px 20px;margin-bottom:12px;box-shadow:var(--shadow);animation:fup .4s ease .26s both;}
@@ -486,6 +508,7 @@ textarea.if{resize:vertical;min-height:68px;line-height:1.6;}
 
 <!-- particle canvas -->
 <canvas id="bg-canvas"></canvas>
+<div class="anki-toast" id="ankiToast">✓ Anki card copied to clipboard!</div>
 
 <!-- ══ SCREEN 1: LANDING ══ -->
 <div class="scr active" id="s-land">
@@ -939,12 +962,9 @@ async function doAn(){
   setP(3);document.getElementById('p2').style.display='none';document.getElementById('lb').style.display='block';document.getElementById('rs').style.display='none';document.getElementById('s-app').scrollTop=0;
   const cx=[document.getElementById('fA').value?`Age: ${document.getElementById('fA').value}`:'',document.getElementById('fS').value?`Sex: ${document.getElementById('fS').value}`:'',document.getElementById('fL').value?`Location: ${document.getElementById('fL').value}`:'',document.getElementById('fD').value?`Duration: ${document.getElementById('fD').value}`:'',document.getElementById('fH').value?`History: ${document.getElementById('fH').value}`:''].filter(Boolean).join('\n');
   const udxStr=udx.length?udx.map((d,i)=>`${i+1}. ${d}`).join('\n'):'None provided';
-  const SYS=`You are an expert academic dermatologist and medical educator. Analyze the clinical image and learner's differential. Return ONLY a JSON object (no markdown fences):
-{"confidence":"high"|"medium"|"low","score":<0-100>,"scoreFeedbackTitle":"<short title>","scoreFeedbackText":"<2-3 sentences>","differentials":[{"rank":1,"name":"Name","latinName":"alt or empty","probability":75,"bullets":["bullet with @@keyword@@ for board buzzwords — 5-8 high-yield bullets"],"tags":["boards"|"treatment"|"emergency"]}],"learnerDxMatches":[{"userDx":"<text>","matchStatus":"hit"|"close"|"miss","note":"<one line>"}],"nextSteps":"<HTML workup. <strong> for key terms.>"}
-Rules: 4-6 differentials, probabilities sum~100, 5-8 HIGH-YIELD bullets, @@wrap@@ buzzwords. Return ONLY valid JSON.`;
   try{
     const b64=IMG.split(',')[1],mime=IMGt||'image/jpeg';
-    const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:SYS,image:{data:b64,media_type:mime},context:cx||'None',userDx:udxStr})});
+    const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:{data:b64,media_type:mime},context:cx||'None',userDx:udxStr})});
     const data=await res.json();
     if(data.error) throw new Error(data.error);
     const raw=(data.text||'').replace(/```json|```/g,'').trim();
@@ -953,6 +973,27 @@ Rules: 4-6 differentials, probabilities sum~100, 5-8 HIGH-YIELD bullets, @@wrap@
 }
 
 function fmt(t){return t.replace(/@@([^@]+)@@/g,'<span class="kw">$1</span>');}
+function fmtPlain(t){return t.replace(/@@([^@]+)@@/g,'$1');}
+
+function showAnkiToast(){
+  const el=document.getElementById('ankiToast');
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+function exportAnki(dx){
+  // Build Anki-importable text: front TAB back
+  // Front: diagnosis name + latin name
+  // Back: bullets as plain text + tags
+  const front = dx.latinName ? `${dx.name} (${dx.latinName})` : dx.name;
+  const back = (dx.bullets||[]).map((b,i)=>`${i+1}. ${fmtPlain(b)}`).join('<br>');
+  const tags = (dx.tags||[]).join(' ');
+  const anki = `${front}\t${back}\t${tags}`;
+  navigator.clipboard.writeText(anki).then(()=>showAnkiToast()).catch(()=>{
+    // fallback
+    const ta=document.createElement('textarea');ta.value=anki;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showAnkiToast();
+  });
+}
 
 function renderR(data,udx){
   document.getElementById('lb').style.display='none';
@@ -976,12 +1017,37 @@ function renderR(data,udx){
       uc.appendChild(el);
     });
   }
+  // store dx data globally for anki export
+  window._lastDx = data.differentials;
   const ac=document.getElementById('ac');ac.innerHTML='';
   data.differentials.forEach((dx,i)=>{
     const tags=(dx.tags||[]).map(t=>{const tm={boards:['tb','📋 Boards'],treatment:['tt','💊 Treatment'],emergency:['te','🚨 Urgent']};const[tc,tl]=tm[t]||tm.boards;return`<span class="tag ${tc}">${tl}</span>`;}).join('');
-    const buls=(dx.bullets||[]).map(b=>`<li><div class="bd"></div><div>${fmt(b)}</div></li>`).join('');
+    // only show top 3 bullets
+    const topBuls=(dx.bullets||[]).slice(0,3).map(b=>`<li><div class="bd"></div><div>${fmt(b)}</div></li>`).join('');
+    const dxIdx=i;
     const card=document.createElement('div');card.className='dxc'+(i===0?' open':'');
-    card.innerHTML=`<div class="dxch" onclick="this.parentElement.classList.toggle('open')"><div class="dxrb">${dx.rank}</div><div class="dxci"><div class="dxcn">${dx.name}</div>${dx.latinName?`<div class="dxcl">${dx.latinName}</div>`:''}</div><div style="display:flex;align-items:center;gap:7px"><div class="pw"><div class="pt2"><div class="pf" style="width:0" data-w="${dx.probability}%"></div></div><div class="ptxt">${dx.probability}%</div></div><svg class="chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div></div><div class="dxbd"><ul class="buls">${buls}</ul>${tags?`<div class="tags">${tags}</div>`:''}</div>`;
+    card.innerHTML=`
+      <div class="dxch" onclick="this.parentElement.classList.toggle('open')">
+        <div class="dxrb">${dx.rank}</div>
+        <div class="dxci">
+          <div class="dxcn">${dx.name}</div>
+          ${dx.latinName?`<div class="dxcl">${dx.latinName}</div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <div class="pw">
+            <div class="pt2"><div class="pf" style="width:0" data-w="${dx.probability}%"></div></div>
+            <div class="ptxt">${dx.probability}%</div>
+          </div>
+          <svg class="chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+      <div class="dxbd">
+        <ul class="buls">${topBuls}</ul>
+        <div class="tags">
+          ${tags}
+          <button class="btn-anki" onclick="exportAnki(window._lastDx[${dxIdx}])">🗂 Export Anki Card</button>
+        </div>
+      </div>`;
     ac.appendChild(card);
   });
   setTimeout(()=>document.querySelectorAll('.pf').forEach(b=>{b.style.width=b.dataset.w;}),130);
